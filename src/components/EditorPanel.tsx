@@ -276,10 +276,25 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       const centeredY = y + (imageHeight - imgHeight) / 2;
 
       pdf.addImage(imgData, "PNG", centeredX, centeredY, imgWidth, imgHeight);
+      
+      // Calculate watermark position in PDF coordinates
+      const bannerHeight = canvas.height * (controls.bannerHeightPercent / 100);
+      const bannerWidth = canvas.width * (controls.bannerWidthPercent / 100);
+      const watermarkX = canvas.width - bannerWidth - controls.offsetX;
+      const watermarkY = canvas.height - bannerHeight - controls.offsetY;
+      
+      // Convert canvas coordinates to PDF coordinates
+      const pdfWatermarkX = centeredX + (watermarkX * ratio);
+      const pdfWatermarkY = centeredY + (watermarkY * ratio);
+      const pdfWatermarkWidth = bannerWidth * ratio;
+      const pdfWatermarkHeight = bannerHeight * ratio;
+      
+      // Add clickable link on watermark area
+      pdf.link(pdfWatermarkX, pdfWatermarkY, pdfWatermarkWidth, pdfWatermarkHeight, { url: TELEGRAM_LINK });
     }
 
     pdf.save("TGDSC_Watermarked.pdf");
-  }, [controls.imagesPerPage, controls.imageSpacing, controls.imagePadding]);
+  }, [controls.imagesPerPage, controls.imageSpacing, controls.imagePadding, controls.bannerHeightPercent, controls.bannerWidthPercent, controls.offsetX, controls.offsetY]);
 
   const handleDownloadPDF = useCallback(async () => {
     setIsCreatingPDF(true);

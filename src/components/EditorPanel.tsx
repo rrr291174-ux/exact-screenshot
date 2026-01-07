@@ -17,6 +17,8 @@ interface EditorPanelProps {
   onReset: () => void;
 }
 
+const TELEGRAM_LINK = 'https://t.me/tgdsc2025';
+
 const FONT_OPTIONS = [
   { value: 'Arial', label: 'Arial' },
   { value: 'Helvetica', label: 'Helvetica' },
@@ -189,6 +191,30 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       ...prev,
       [imageId]: { x: 0, y: 0, scale: 1, rotation: 0 }
     }));
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent, imageItem: ImageItem) => {
+    if (isEditMode) return; // Don't redirect when in edit mode
+    
+    const canvas = canvasRefs.current[imageItem.id];
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+    
+    // Calculate watermark banner position
+    const bannerHeight = canvas.height * (controls.bannerHeightPercent / 100);
+    const bannerWidth = canvas.width * (controls.bannerWidthPercent / 100);
+    const x = canvas.width - bannerWidth - controls.offsetX;
+    const y = canvas.height - bannerHeight - controls.offsetY;
+    
+    // Check if click is within watermark area
+    if (clickX >= x && clickX <= x + bannerWidth && clickY >= y && clickY <= y + bannerHeight) {
+      window.open(TELEGRAM_LINK, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleDownloadAll = async () => {
@@ -403,7 +429,9 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
                   <canvas
                     ref={el => canvasRefs.current[imageItem.id] = el}
                     className="max-w-full h-auto mx-auto shadow-lg rounded"
-                    style={{ maxHeight: '500px' }}
+                    style={{ maxHeight: '500px', cursor: isEditMode ? undefined : 'pointer' }}
+                    onClick={(e) => handleCanvasClick(e, imageItem)}
+                    title={isEditMode ? undefined : "Click watermark to join Telegram group"}
                   />
                 </div>
               ))}

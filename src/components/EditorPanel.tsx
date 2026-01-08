@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Download, RotateCcw, FileImage, ChevronLeft, ChevronRight, FileText, Type, 
+import {
+  Download, RotateCcw, FileImage, ChevronLeft, ChevronRight, FileText, Type,
   ArrowDown, Layers, Maximize2, ZoomIn, ZoomOut, RotateCw, Move, Edit3
 } from 'lucide-react';
 import { ImageState, WatermarkControls, ImageItem, ImageTransform } from '@/types';
-import { downloadImage } from '@/utils/download';
+import { downloadBlob } from '@/utils/download';
 
 interface EditorPanelProps {
   imageState: ImageState;
@@ -18,6 +19,11 @@ interface EditorPanelProps {
 }
 
 const TELEGRAM_LINK = 'https://t.me/tgdsc2025';
+
+const sanitizeFilename = (name: string) =>
+  name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+
+const stripExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
 
 const FONT_OPTIONS = [
   { value: 'Arial', label: 'Arial' },
@@ -217,22 +223,34 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
     }
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
     setIsDownloading(true);
     try {
-      imageState.images.forEach((imageItem) => {
-        const canvas = canvasRefs.current[imageItem.id];
-        if (canvas) {
+      const zip = new JSZip();
+
+      await Promise.all(
+        imageState.images.map(async (imageItem) => {
+          const canvas = canvasRefs.current[imageItem.id];
+          if (!canvas) return;
+
           const dataUrl = canvas.toDataURL('image/png', 1.0);
-          downloadImage(dataUrl, `watermarked-${imageItem.name}`);
-        }
-      });
+          const blob = await (await fetch(dataUrl)).blob();
+
+          const baseName = sanitizeFilename(`watermarked-${stripExtension(imageItem.name)}`);
+          zip.file(`${baseName}.png`, blob);
+        })
+      );
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, 'watermarked-images.zip');
     } catch (error) {
       console.error('Failed to download images:', error);
+      alert('Download failed. Please try again.');
     } finally {
-      setTimeout(() => setIsDownloading(false), 500);
+      setIsDownloading(false);
     }
   };
+
 
   const downloadPDF = useCallback(async (images: ImageItem[]) => {
     const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
@@ -603,7 +621,7 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
             <Button onClick={handleDownloadAll} disabled={isDownloading} className="bg-primary hover:bg-primary/90">
               <Download className="w-4 h-4 mr-2" />
-              {isDownloading ? 'Downloading...' : `Download All (${imageState.images.length})`}
+              {isDownloading ? 'Preparing ZIP...' : `Download ZIP (${imageState.images.length})`}
             </Button>
             
             <Button onClick={handleDownloadPDF} disabled={isCreatingPDF} className="bg-success hover:bg-success/90 text-success-foreground">

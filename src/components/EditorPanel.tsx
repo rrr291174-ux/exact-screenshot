@@ -217,18 +217,16 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
     }
   };
 
-  const handleDownloadAll = async () => {
+  const handleDownloadAll = () => {
     setIsDownloading(true);
     try {
-      for (let i = 0; i < imageState.images.length; i++) {
-        const imageItem = imageState.images[i];
+      imageState.images.forEach((imageItem) => {
         const canvas = canvasRefs.current[imageItem.id];
         if (canvas) {
           const dataUrl = canvas.toDataURL('image/png', 1.0);
           downloadImage(dataUrl, `watermarked-${imageItem.name}`);
-          await new Promise(resolve => setTimeout(resolve, 200));
         }
-      }
+      });
     } catch (error) {
       console.error('Failed to download images:', error);
     } finally {

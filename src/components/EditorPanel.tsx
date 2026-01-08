@@ -11,7 +11,6 @@ import {
   ArrowDown, Layers, Maximize2, ZoomIn, ZoomOut, RotateCw, Move, Edit3
 } from 'lucide-react';
 import { ImageState, WatermarkControls, ImageItem, ImageTransform } from '@/types';
-import { downloadBlob } from '@/utils/download';
 
 interface EditorPanelProps {
   imageState: ImageState;
@@ -46,12 +45,19 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
   const canvasRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
   const [isDownloading, setIsDownloading] = useState(false);
   const [isCreatingPDF, setIsCreatingPDF] = useState(false);
+  const [zipDownload, setZipDownload] = useState<{ url: string; filename: string } | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTool, setSelectedTool] = useState<'move' | 'zoom' | 'rotate'>('move');
   const [imageTransforms, setImageTransforms] = useState<{ [key: string]: ImageTransform }>({});
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    return () => {
+      if (zipDownload?.url) URL.revokeObjectURL(zipDownload.url);
+    };
+  }, [zipDownload?.url]);
   
   const [controls, setControls] = useState<WatermarkControls>({
     bannerHeightPercent: 4.5,
@@ -225,24 +231,49 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
 
   const handleDownloadAll = async () => {
     setIsDownloading(true);
+    setZipDownload(null);
+
     try {
       const zip = new JSZip();
 
-      await Promise.all(
-        imageState.images.map(async (imageItem) => {
-          const canvas = canvasRefs.current[imageItem.id];
-          if (!canvas) return;
+      const canvasToBlob = (canvas: HTMLCanvasElement) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error('Canvas export failed'));
+              resolve(blob);
+            },
+            'image/png'
+          );
+        });
 
-          const dataUrl = canvas.toDataURL('image/png', 1.0);
-          const blob = await (await fetch(dataUrl)).blob();
+      for (const imageItem of imageState.images) {
+        const canvas = canvasRefs.current[imageItem.id];
+        if (!canvas) continue;
 
-          const baseName = sanitizeFilename(`watermarked-${stripExtension(imageItem.name)}`);
-          zip.file(`${baseName}.png`, blob);
-        })
-      );
+        const blob = await canvasToBlob(canvas);
+        const baseName = sanitizeFilename(`watermarked-${stripExtension(imageItem.name)}`);
+        zip.file(`${baseName}.png`, blob);
+      }
 
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(zipBlob, 'watermarked-images.zip');
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+
+      const filename = 'watermarked-images.zip';
+      const url = URL.createObjectURL(zipBlob);
+      setZipDownload({ url, filename });
+
+      // Try auto-download first (some browsers block downloads after long async work)
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       console.error('Failed to download images:', error);
       alert('Download failed. Please try again.');
@@ -623,16 +654,30 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
               <Download className="w-4 h-4 mr-2" />
               {isDownloading ? 'Preparing ZIP...' : `Download ZIP (${imageState.images.length})`}
             </Button>
-            
+
             <Button onClick={handleDownloadPDF} disabled={isCreatingPDF} className="bg-success hover:bg-success/90 text-success-foreground">
               <FileText className="w-4 h-4 mr-2" />
               {isCreatingPDF ? 'Creating PDF...' : `Download PDF (${Math.ceil(imageState.images.length / controls.imagesPerPage)} pages)`}
             </Button>
-            
+
             <Button onClick={onReset} variant="outline">
               <RotateCcw className="w-4 h-4 mr-2" /> Start Over
             </Button>
           </div>
+
+          {zipDownload?.url && !isDownloading && (
+            <div className="pt-2 text-sm text-muted-foreground">
+              If ZIP download didn’t start, click{' '}
+              <a
+                href={zipDownload.url}
+                download={zipDownload.filename}
+                className="text-primary underline"
+              >
+                here
+              </a>
+              .
+            </div>
+          )}
           
           <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg border">
             <strong className="text-primary">📄 PDF Layout Info</strong>

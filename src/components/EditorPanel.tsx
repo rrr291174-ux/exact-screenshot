@@ -233,6 +233,45 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
     setIsDownloading(true);
     setZipDownload(null);
 
+    // Keep the download tied to a direct user gesture (mobile/iframes can block
+    // downloads that happen only after long async work).
+    const popup = window.open('', '_blank');
+    if (popup) {
+      try {
+        popup.opener = null;
+        popup.document.title = 'Preparing ZIP…';
+        popup.document.body.innerHTML =
+          '<p style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; padding: 16px;">Preparing ZIP… Download will start automatically. You can close this tab after it starts.</p>';
+      } catch {
+        // Ignore (some browsers restrict document access)
+      }
+    }
+
+    const clickDownload = (doc: Document, href: string, filename: string) => {
+      const a = doc.createElement('a');
+      a.href = href;
+      a.download = filename;
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      (doc.body || doc.documentElement).appendChild(a);
+
+      // a.click() is not reliable on all mobile browsers; dispatching a click event helps.
+      try {
+        a.click();
+      } catch {
+        // ignore
+      }
+      try {
+        a.dispatchEvent(
+          new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+        );
+      } catch {
+        // ignore
+      }
+
+      a.remove();
+    };
+
     try {
       const zip = new JSZip();
 
@@ -266,22 +305,44 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       const url = URL.createObjectURL(zipBlob);
       setZipDownload({ url, filename });
 
-      // Try auto-download first (some browsers block downloads after long async work)
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // 1) Try the popup tab (often works even when the preview iframe blocks downloads)
+      if (popup) {
+        try {
+          clickDownload(popup.document, url, filename);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 2) Also try in the current tab
+      try {
+        clickDownload(document, url, filename);
+      } catch {
+        // ignore
+      }
+
+      // 3) Last resort: navigate popup to the blob URL
+      if (popup) {
+        try {
+          popup.location.href = url;
+        } catch {
+          // ignore
+        }
+      }
     } catch (error) {
       console.error('Failed to download images:', error);
       alert('Download failed. Please try again.');
+      if (popup) {
+        try {
+          popup.close();
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setIsDownloading(false);
     }
   };
-
 
   const downloadPDF = useCallback(async (images: ImageItem[]) => {
     const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });

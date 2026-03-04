@@ -125,8 +125,8 @@ export function DropZone({ onImagesUpload }: DropZoneProps) {
         <div className="w-20 h-20 gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 animate-float shadow-glow">
           <Upload className="w-10 h-10 text-primary-foreground" />
         </div>
-        <h2 className="text-3xl font-bold text-foreground mb-2">Upload Your Images</h2>
-        <p className="text-muted-foreground">Drop images here or click to browse. Multiple images supported.</p>
+        <h2 className="text-3xl font-bold text-foreground mb-2">Upload Your Files</h2>
+        <p className="text-muted-foreground">Drop images or PDFs here or click to browse. Multiple files supported.</p>
       </div>
       
       {/* Drop Zone */}
@@ -145,17 +145,24 @@ export function DropZone({ onImagesUpload }: DropZoneProps) {
         <input
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,.pdf,application/pdf"
           onChange={handleFileInput}
           className="hidden"
           id="file-upload"
+          disabled={isProcessing}
         />
         <label htmlFor="file-upload" className="cursor-pointer">
           <div className="flex flex-col items-center space-y-4">
             <ImageIcon className={`w-16 h-16 transition-colors ${isDragOver ? 'text-primary' : 'text-muted-foreground/50'}`} />
             <div>
-              <p className="text-lg font-medium text-foreground">Drop images here or click to browse</p>
-              <p className="text-sm text-muted-foreground mt-1">Support for JPG, PNG, GIF, WebP (Max 10MB each)</p>
+              {isProcessing ? (
+                <p className="text-lg font-medium text-primary">Processing files... Please wait</p>
+              ) : (
+                <>
+                  <p className="text-lg font-medium text-foreground">Drop images or PDFs here, or click to browse</p>
+                  <p className="text-sm text-muted-foreground mt-1">Support for JPG, PNG, GIF, WebP, PDF (Max 10MB each)</p>
+                </>
+              )}
             </div>
           </div>
         </label>

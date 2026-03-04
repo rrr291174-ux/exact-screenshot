@@ -282,7 +282,8 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
               if (!blob) return reject(new Error('Canvas export failed'));
               resolve(blob);
             },
-            'image/png'
+            'image/jpeg',
+            0.85
           );
         });
 
@@ -292,7 +293,7 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
 
         const blob = await canvasToBlob(canvas);
         const baseName = sanitizeFilename(`watermarked-${stripExtension(imageItem.name)}`);
-        zip.file(`${baseName}.png`, blob);
+        zip.file(`${baseName}.jpg`, blob);
       }
 
       const zipBlob = await zip.generateAsync({
@@ -367,7 +368,7 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       const canvas = canvasRefs.current[images[i].id];
       if (!canvas) continue;
       
-      const imgData = canvas.toDataURL("image/png", 1.0);
+      const imgData = canvas.toDataURL("image/jpeg", 0.85);
       const positionInPage = i % imagesPerPage;
       
       if (i > 0 && positionInPage === 0) pdf.addPage();
@@ -383,7 +384,7 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       const centeredX = x + (imageWidth - imgWidth) / 2;
       const centeredY = y + (imageHeight - imgHeight) / 2;
 
-      pdf.addImage(imgData, "PNG", centeredX, centeredY, imgWidth, imgHeight);
+      pdf.addImage(imgData, "JPEG", centeredX, centeredY, imgWidth, imgHeight);
       
       // Calculate watermark position in PDF coordinates
       const bannerHeight = canvas.height * (controls.bannerHeightPercent / 100);

@@ -1,6 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Upload, Image as ImageIcon, Zap, FileText, Users } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
 import { ImageItem } from '@/types';
+
+// Use the bundled worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).toString();
 
 interface DropZoneProps {
   onImagesUpload: (images: ImageItem[]) => void;
@@ -8,41 +15,87 @@ interface DropZoneProps {
 
 export function DropZone({ onImagesUpload }: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const processFiles = useCallback((files: FileList) => {
-    const imageFiles = Array.from(files).filter(file => 
-      file.type.startsWith('image/')
-    );
+  const convertPdfToImages = useCallback(async (file: File): Promise<ImageItem[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images: ImageItem[] = [];
 
-    if (imageFiles.length === 0) {
-      alert('Please select image files only');
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const scale = 2; // High resolution
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const dataUrl = canvas.toDataURL('image/png');
+      images.push({
+        id: `pdf-${Date.now()}-${i}`,
+        src: dataUrl,
+        width: viewport.width,
+        height: viewport.height,
+        name: `${file.name}-page-${i}.png`,
+      });
+    }
+
+    return images;
+  }, []);
+
+  const processFiles = useCallback(async (files: FileList) => {
+    const allFiles = Array.from(files);
+    const imageFiles = allFiles.filter(file => file.type.startsWith('image/'));
+    const pdfFiles = allFiles.filter(file => file.type === 'application/pdf');
+
+    if (imageFiles.length === 0 && pdfFiles.length === 0) {
+      alert('Please select image or PDF files');
       return;
     }
 
-    const imagePromises = imageFiles.map((file, index) => {
-      return new Promise<ImageItem>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            resolve({
-              id: `img-${Date.now()}-${index}`,
-              src: e.target?.result as string,
-              width: img.width,
-              height: img.height,
-              name: file.name
-            });
-          };
-          img.src = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-      });
-    });
+    setIsProcessing(true);
 
-    Promise.all(imagePromises).then(images => {
-      onImagesUpload(images);
-    });
-  }, [onImagesUpload]);
+    try {
+      // Process image files
+      const imagePromises = imageFiles.map((file, index) => {
+        return new Promise<ImageItem>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              resolve({
+                id: `img-${Date.now()}-${index}`,
+                src: e.target?.result as string,
+                width: img.width,
+                height: img.height,
+                name: file.name
+              });
+            };
+            img.src = e.target?.result as string;
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      // Process PDF files
+      const pdfPromises = pdfFiles.map(file => convertPdfToImages(file));
+
+      const [images, ...pdfImageArrays] = await Promise.all([
+        Promise.all(imagePromises),
+        ...pdfPromises,
+      ]);
+
+      const allImages = [...images, ...pdfImageArrays.flat()];
+      onImagesUpload(allImages);
+    } catch (error) {
+      console.error('Error processing files:', error);
+      alert('Failed to process some files. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [onImagesUpload, convertPdfToImages]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();

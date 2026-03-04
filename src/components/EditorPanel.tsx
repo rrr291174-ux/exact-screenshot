@@ -17,7 +17,8 @@ interface EditorPanelProps {
   onReset: () => void;
 }
 
-const TELEGRAM_LINK = 'https://t.me/tgdsc2025';
+const TELEGRAM_LINK = 'https://t.me/tgdsc2026';
+const WHATSAPP_LINK = 'https://whatsapp.com/channel/0029VbBpxo11CYoLvtwMdW0j';
 
 const sanitizeFilename = (name: string) =>
   name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
@@ -226,6 +227,7 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
     // Check if click is within watermark area
     if (clickX >= x && clickX <= x + bannerWidth && clickY >= y && clickY <= y + bannerHeight) {
       window.open(TELEGRAM_LINK, '_blank', 'noopener,noreferrer');
+      window.open(WHATSAPP_LINK, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -398,8 +400,10 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       const pdfWatermarkWidth = bannerWidth * ratio;
       const pdfWatermarkHeight = bannerHeight * ratio;
       
-      // Add clickable link on watermark area
-      pdf.link(pdfWatermarkX, pdfWatermarkY, pdfWatermarkWidth, pdfWatermarkHeight, { url: TELEGRAM_LINK });
+      // Add clickable links on watermark area (top half = Telegram, bottom half = WhatsApp)
+      const halfHeight = pdfWatermarkHeight / 2;
+      pdf.link(pdfWatermarkX, pdfWatermarkY, pdfWatermarkWidth, halfHeight, { url: TELEGRAM_LINK });
+      pdf.link(pdfWatermarkX, pdfWatermarkY + halfHeight, pdfWatermarkWidth, halfHeight, { url: WHATSAPP_LINK });
     }
 
     pdf.save("TGDSC_Watermarked.pdf");

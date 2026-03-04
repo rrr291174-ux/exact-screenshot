@@ -141,7 +141,21 @@ export function EditorPanel({ imageState, onReset }: EditorPanelProps) {
       ctx.shadowBlur = 2;
       ctx.shadowOffsetX = 1;
       ctx.shadowOffsetY = 1;
-      ctx.fillText(controls.watermarkText || 'TGDSCGROUP', x + bannerWidth / 2, y + bannerHeight / 2);
+      
+      // Draw main text in upper portion
+      ctx.fillText(controls.watermarkText || 'TGDSCGROUP', x + bannerWidth / 2, y + bannerHeight * 0.3);
+      
+      // Draw clickable link URLs below
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      const linkFontSize = fontSize * 0.35;
+      ctx.font = `700 ${linkFontSize}px "${controls.fontFamily}", Arial, sans-serif`;
+      ctx.fillStyle = controls.textColor;
+      ctx.globalAlpha = 0.85;
+      ctx.fillText('TG: t.me/tgdsc2026', x + bannerWidth / 2, y + bannerHeight * 0.6);
+      ctx.fillText('WA: whatsapp.com/channel/0029VbBpxo11', x + bannerWidth / 2, y + bannerHeight * 0.8);
+      ctx.globalAlpha = 1.0;
     };
     img.src = imageItem.src;
   }, [controls, imageTransforms]);
